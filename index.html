@@ -57,6 +57,11 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 td,th{border-bottom:1px solid var(--line);padding:9px 6px;text-align:left}
 th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
 .mut{color:var(--muted);font-size:13px}
+.pill{display:inline-block;min-width:30px;text-align:center;padding:2px 10px;border-radius:999px;font-weight:700}
+.pH{background:#dcfce7;color:#15803d}
+.pI{background:#fef3c7;color:#b45309}
+.pS{background:#dbeafe;color:#1d4ed8}
+.pA{background:#fee2e2;color:#b91c1c}
 .pre{white-space:pre-wrap;background:#f8fafc;border:1px dashed #cbd3e1;border-radius:9px;padding:12px;font-size:14px}
 .mem-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .mem-item .row{flex:none}
@@ -152,7 +157,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
         <div><label>Sampai</label><input type="date" id="d2"></div>
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="act" id="expRekap">Export rekap (CSV)</button>
+        <button class="act" id="expRekap">Export rekap (Excel)</button>
       </div>
     </div>
     <div class="card" id="rekapOut"></div>
@@ -340,7 +345,7 @@ function renderRekap(){
     let c={H:0,I:0,S:0,A:0},n=0;
     ds.forEach(d=>{const v=(DB.records[d]||{})[m.id];if(v){c[v]++;n++;}});
     const p=n?Math.round(c.H/n*100):0;
-    h+='<tr><td>'+esc(m.nama)+'</td><td>'+c.H+'</td><td>'+c.I+'</td><td>'+c.S+'</td><td>'+c.A+'</td><td>'+p+'%</td></tr>';
+    h+='<tr><td>'+esc(m.nama)+'</td><td><span class="pill pH">'+c.H+'</span></td><td><span class="pill pI">'+c.I+'</span></td><td><span class="pill pS">'+c.S+'</span></td><td><span class="pill pA">'+c.A+'</span></td><td>'+p+'%</td></tr>';
   });
   h+='</table><p class="mut">'+ds.length+' pertemuan: '+ds.join(', ')+'</p>';
   $('rekapOut').innerHTML=h;
@@ -348,15 +353,19 @@ function renderRekap(){
 $('expRekap').onclick=()=>{
   const ds=datesIn($('d1').value,$('d2').value);
   if(!ds.length||!DB.members.length)return alert('Tidak ada data pada rentang ini');
-  let rows=[['nama','divisi','H','I','S','A','kehadiran_%','pertemuan']];
+  const C={H:['#dcfce7','#15803d'],I:['#fef3c7','#b45309'],S:['#dbeafe','#1d4ed8'],A:['#fee2e2','#b91c1c']};
+  const cell=(v,k)=>'<td style="background:'+C[k][0]+';color:'+C[k][1]+';font-weight:bold;text-align:center">'+v+'</td>';
+  const escX=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let t='<table border="1"><tr><th>Nama</th><th>Divisi</th><th>H</th><th>I</th><th>S</th><th>A</th><th>Kehadiran %</th><th>Pertemuan</th></tr>';
   DB.members.forEach(m=>{
     let c={H:0,I:0,S:0,A:0},n=0;
     ds.forEach(d=>{const v=(DB.records[d]||{})[m.id];if(v){c[v]++;n++;}});
     const p=n?Math.round(c.H/n*100):0;
-    rows.push([m.nama,m.divisi||'',c.H,c.I,c.S,c.A,p+'%',ds.length]);
+    t+='<tr><td>'+escX(m.nama)+'</td><td>'+escX(m.divisi||'')+'</td>'+cell(c.H,'H')+cell(c.I,'I')+cell(c.S,'S')+cell(c.A,'A')+'<td>'+p+'%</td><td>'+ds.length+'</td></tr>';
   });
-  const fn='rekap-osis-'+(ds[0]||'x')+'_'+(ds[ds.length-1]||'x')+'.csv';
-  dl(fn,rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv');
+  t+='</table>';
+  const fn='rekap-osis-'+(ds[0]||'x')+'_'+(ds[ds.length-1]||'x')+'.xls';
+  dl(fn,'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>'+t+'</body></html>','application/vnd.ms-excel');
 };
 
 function parseCSV(t){
