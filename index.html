@@ -3,50 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Absen OSIS</title>
+<title>Absen OSIS — OSIS SMK Alhikmah</title>
 <style>
+:root{
+  --bg:#f1f4f9; --surface:#ffffff; --ink:#1a2333; --muted:#6b7686;
+  --line:#e3e8f0; --navy:#1e3a8a; --navy-soft:#eaf0fe;
+  --green:#15803d; --green-soft:#e6f6ec; --amber:#b45309; --amber-soft:#fdf3e3;
+  --blue:#1d4ed8; --blue-soft:#e8effd; --red:#b91c1c; --red-soft:#fdecec;
+  --r:12px; --shadow:0 1px 2px rgba(16,24,40,.06);
+}
 *{box-sizing:border-box}
-body{font-family:system-ui,sans-serif;margin:0;background:#f3f4f6;color:#111}
-header{background:#1e3a8a;color:#fff;padding:14px 16px}
-header h1{margin:0;font-size:18px}
-nav{display:flex;gap:8px;padding:10px 16px;background:#fff;position:sticky;top:0;border-bottom:1px solid #ddd}
-nav button{flex:1;padding:10px;border:1px solid #ccc;border-radius:8px;background:#f9fafb;cursor:pointer}
-nav button.on{background:#1e3a8a;color:#fff;border-color:#1e3a8a}
-main{padding:16px;max-width:720px;margin:auto}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;background:var(--bg);color:var(--ink);line-height:1.5}
+/* ---- header: identitas rapi, tidak mencolok ---- */
+.topbar{background:var(--surface);border-bottom:1px solid var(--line)}
+.topbar-inner{max-width:760px;margin:auto;padding:14px 16px 12px;display:flex;align-items:center;gap:12px}
+.org-mark{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;letter-spacing:.5px;flex:none}
+.org-name{font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+.topbar h1{margin:2px 0 0;font-size:20px;font-weight:700}
+.topbar .sub{font-size:12px;color:var(--muted);margin-top:1px}
+/* ---- tab ---- */
+.tabs{max-width:760px;margin:12px auto 0;padding:0 16px}
+.tabs-inner{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px;display:flex;gap:4px;box-shadow:var(--shadow);position:sticky;top:12px}
+.tabs button{flex:1;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer}
+.tabs button.on{background:var(--navy);color:#fff}
+main{padding:14px 16px 40px;max-width:760px;margin:auto}
 section{display:none}
 section.on{display:block}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:12px}
-input,select,textarea{width:100%;padding:9px;margin:4px 0 8px;border:1px solid #ccc;border-radius:8px;font-family:inherit;font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h2{margin:0 0 6px;font-size:15px}
+.sec-label{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+input,select,textarea{width:100%;padding:10px 12px;margin:4px 0 10px;border:1px solid #cbd3e1;border-radius:9px;font-family:inherit;font-size:14px;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:0;border-color:var(--navy)}
 textarea{resize:vertical}
-label{font-size:12px;color:#555}
+label{font-size:12px;color:var(--muted);font-weight:600}
 .row{display:flex;gap:8px}
 .row>*{flex:1}
-button.act{padding:9px 12px;border-radius:8px;border:1px solid #ccc;background:#f9fafb;cursor:pointer}
-button.pri{background:#16a34a;color:#fff;border-color:#16a34a}
-button.dan{background:#fee2e2;border-color:#fca5a5}
+button.act{min-height:44px;padding:10px 14px;border-radius:9px;border:1px solid #cbd3e1;background:#fff;color:var(--ink);font-weight:600;font-size:14px;cursor:pointer}
+button.act:hover{border-color:var(--navy)}
+button.pri{background:var(--green);border-color:var(--green);color:#fff}
+button.dan{background:var(--red-soft);border-color:#f3b4b4;color:var(--red)}
 button:disabled{opacity:.5;cursor:not-allowed}
-.st{display:flex;gap:4px;flex-wrap:wrap}
-.st button{flex:1;min-width:60px;padding:8px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
-.st button.s{background:#1e3a8a;color:#fff;border-color:#1e3a8a}
+/* ---- daftar absen ---- */
+.absen-item{padding:12px 14px}
+.absen-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.absen-top b{font-size:15px}
+.st{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.st button{min-height:44px;border-radius:9px;border:1px solid #cbd3e1;background:#f8fafc;cursor:pointer;font-weight:700;font-size:13px;color:var(--muted)}
+.st button.s-H{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.st button.s-I{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+.st button.s-S{background:var(--blue-soft);border-color:var(--blue);color:var(--blue)}
+.st button.s-A{background:var(--red-soft);border-color:var(--red);color:var(--red)}
 table{width:100%;border-collapse:collapse;font-size:14px}
-td,th{border-bottom:1px solid #eee;padding:8px 4px;text-align:left}
-.mut{color:#666;font-size:13px}
-.pre{white-space:pre-wrap;background:#f9fafb;border:1px dashed #ccc;border-radius:8px;padding:10px;font-size:14px}
+td,th{border-bottom:1px solid var(--line);padding:9px 6px;text-align:left}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.mut{color:var(--muted);font-size:13px}
+.pre{white-space:pre-wrap;background:#f8fafc;border:1px dashed #cbd3e1;border-radius:9px;padding:12px;font-size:14px}
+.mem-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mem-item .row{flex:none}
+.mem-item .row button{min-height:40px;padding:6px 12px;font-size:13px}
+@media(max-width:480px){.st{grid-template-columns:repeat(4,1fr)}.absen-top{flex-direction:column;gap:0}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<header>
-  <h1>Absen OSIS</h1>
-  <div class="mut" style="color:#bfdbfe">Data hanya di browser ini (localStorage)</div>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="org-mark">OA</div>
+    <div>
+      <div class="org-name">OSIS SMK Alhikmah</div>
+      <h1>Absen OSIS</h1>
+      <div class="sub">Data hanya di browser ini (localStorage)</div>
+    </div>
+  </div>
 </header>
-<nav>
+<div class="tabs"><div class="tabs-inner" style="width:100%">
   <button data-t="absen" class="on">Absen</button>
   <button data-t="anggota">Anggota</button>
   <button data-t="rekap">Rekap</button>
-</nav>
+</div></div>
 <main>
   <section id="absen" class="on">
     <div class="card">
+      <p class="sec-label">Kehadiran</p>
       <label>Tanggal</label>
       <input type="date" id="tgl">
       <div class="row">
@@ -57,7 +95,7 @@ td,th{border-bottom:1px solid #eee;padding:8px 4px;text-align:left}
     </div>
     <div id="absenList"></div>
     <div class="card">
-      <b>Pesan WA grup (Alpa)</b>
+      <p class="sec-label">Pesan WA grup (Alpa)</p>
       <div class="mut">Template: {kegiatan}, {tanggal}, {waktu}, {daftar}. {daftar} terisi otomatis dari anggota berstatus A pada tanggal ini.</div>
       <input id="kegiatan" placeholder="Nama kegiatan, cth: Rapat Rutin OSIS">
       <div class="row">
@@ -78,13 +116,14 @@ td,th{border-bottom:1px solid #eee;padding:8px 4px;text-align:left}
   </section>
   <section id="anggota">
     <div class="card">
+      <p class="sec-label">Tambah anggota</p>
       <input id="nama" placeholder="Nama anggota">
       <input id="divisi" placeholder="Divisi / jabatan (opsional)">
       <input id="tel" type="tel" inputmode="tel" placeholder="No. HP, cth 0812... (opsional)">
       <button class="act pri" id="addM" style="width:100%">+ Tambah anggota</button>
     </div>
     <div class="card">
-      <b>Impor CSV</b>
+      <p class="sec-label">Impor CSV</p>
       <div class="mut">Format per baris: nama,divisi,telepon. Baris header (nama,...) boleh ada. Dari Excel: Save As CSV.</div>
       <div class="row" style="margin-top:8px">
         <input type="file" id="impFile" accept=".csv,text/csv">
@@ -94,7 +133,7 @@ td,th{border-bottom:1px solid #eee;padding:8px 4px;text-align:left}
     </div>
     <div id="memList"></div>
     <div class="card">
-      <b>Backup</b>
+      <p class="sec-label">Backup</p>
       <div class="row">
         <button class="act" id="bak">Backup JSON</button>
         <button class="act" id="exp">Export CSV</button>
@@ -107,6 +146,7 @@ td,th{border-bottom:1px solid #eee;padding:8px 4px;text-align:left}
   </section>
   <section id="rekap">
     <div class="card">
+      <p class="sec-label">Rentang tanggal</p>
       <div class="row">
         <div><label>Dari</label><input type="date" id="d1"></div>
         <div><label>Sampai</label><input type="date" id="d2"></div>
@@ -120,6 +160,7 @@ const K='osisAbsenV1';
 let DB=JSON.parse(localStorage.getItem(K)||'{"members":[],"records":{}}');
 if(!DB.settings)DB.settings={};
 const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const save=()=>localStorage.setItem(K,JSON.stringify(DB));
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -133,8 +174,8 @@ $('waktu').value=DB.settings.waktu||'15:30';
 $('kegiatan').value=DB.settings.kegiatan||'';
 $('tpl').value=DB.settings.tpl||DEF_TPL;
 
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('on'));
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
   document.querySelectorAll('section').forEach(x=>x.classList.remove('on'));
   b.classList.add('on');
   $(b.dataset.t).classList.add('on');
@@ -154,12 +195,16 @@ $('addM').onclick=()=>{
 function renderMem(){
   const el=$('memList');el.innerHTML='';
   DB.members.forEach(m=>{
-    const d=document.createElement('div');d.className='card';
-    d.innerHTML='<b></b> <span class="mut"></span><div class="mut tel"></div><div class="row" style="margin-top:8px"><button class="act">Edit</button><button class="act dan">Hapus</button></div>';
-    d.querySelector('b').textContent=m.nama;
-    d.querySelector('span').textContent=m.divisi||'';
-    d.querySelector('.tel').textContent=telOf(m)?('HP: '+telOf(m)):'(tanpa no. HP)';
-    d.querySelectorAll('button')[0].onclick=()=>{
+    const d=document.createElement('div');d.className='card mem-item';
+    const info=document.createElement('div');
+    const b=document.createElement('b');b.textContent=m.nama;
+    const sp=document.createElement('div');sp.className='mut';
+    sp.textContent=(m.divisi||'')+(telOf(m)?((m.divisi?' · ':'')+'HP: '+telOf(m)):'');
+    info.append(b,sp);
+    const rw=document.createElement('div');rw.className='row';
+    const be=document.createElement('button');be.className='act';be.textContent='Edit';
+    const bh=document.createElement('button');bh.className='act dan';bh.textContent='Hapus';
+    be.onclick=()=>{
       const n=prompt('Nama:',m.nama);if(n===null)return;
       const dv=prompt('Divisi:',m.divisi||'');if(dv===null)return;
       const t=prompt('No. HP:',telOf(m));if(t===null)return;
@@ -167,13 +212,13 @@ function renderMem(){
       m.nama=n.trim()||m.nama;m.divisi=dv.trim();m.tel=cleanTel(t);
       save();renderMem();renderAbsen();
     };
-    d.querySelectorAll('button')[1].onclick=()=>{
+    bh.onclick=()=>{
       if(!confirm('Hapus '+m.nama+'?'))return;
       DB.members=DB.members.filter(x=>x.id!==m.id);
       Object.values(DB.records).forEach(r=>delete r[m.id]);
       save();renderMem();renderAbsen();
     };
-    el.appendChild(d);
+    rw.append(be,bh);d.append(info,rw);el.appendChild(d);
   });
 }
 
@@ -187,20 +232,22 @@ function renderAbsen(){
   const LBL={H:'Hadir',I:'Izin',S:'Sakit',A:'Alpa'};
   DB.members.forEach(m=>{
     if(!tmp[m.id])tmp[m.id]='H';
-    const d=document.createElement('div');d.className='card';
+    const d=document.createElement('div');d.className='card absen-item';
+    const top=document.createElement('div');top.className='absen-top';
     const nm=document.createElement('b');nm.textContent=m.nama;
     const dv=document.createElement('div');dv.className='mut';
-    dv.textContent=(m.divisi||'-')+(telOf(m)?(' - '+telOf(m)):'');
+    dv.textContent=(m.divisi||'-')+(telOf(m)?(' · '+telOf(m)):'');
+    top.append(nm,dv);
     const s=document.createElement('div');s.className='st';
     STS.forEach(v=>{
       const b=document.createElement('button');
-      b.textContent=v+' '+LBL[v].slice(0,2);
+      b.textContent=v+' · '+LBL[v].slice(0,2);
       b.title=LBL[v];
-      b.classList.toggle('s',tmp[m.id]===v);
-      b.onclick=()=>{tmp[m.id]=v;s.querySelectorAll('button').forEach(x=>x.classList.remove('s'));b.classList.add('s');renderWa();};
+      b.classList.toggle('s-'+v,tmp[m.id]===v);
+      b.onclick=()=>{tmp[m.id]=v;s.querySelectorAll('button').forEach(x=>x.classList.remove('s-H','s-I','s-S','s-A'));b.classList.add('s-'+v);renderWa();};
       s.appendChild(b);
     });
-    d.append(nm,dv,s);el.appendChild(d);
+    d.append(top,s);el.appendChild(d);
   });
   renderWa();
 }
@@ -290,8 +337,7 @@ function renderRekap(){
     let c={H:0,I:0,S:0,A:0},n=0;
     ds.forEach(d=>{const v=(DB.records[d]||{})[m.id];if(v){c[v]++;n++;}});
     const p=n?Math.round(c.H/n*100):0;
-    const nm=document.createElement('span');nm.textContent=m.nama;
-    h+='<tr><td>'+nm.innerHTML+'</td><td>'+c.H+'</td><td>'+c.I+'</td><td>'+c.S+'</td><td>'+c.A+'</td><td>'+p+'%</td></tr>';
+    h+='<tr><td>'+esc(m.nama)+'</td><td>'+c.H+'</td><td>'+c.I+'</td><td>'+c.S+'</td><td>'+c.A+'</td><td>'+p+'%</td></tr>';
   });
   h+='</table><p class="mut">'+ds.length+' pertemuan: '+ds.join(', ')+'</p>';
   $('rekapOut').innerHTML=h;
@@ -360,8 +406,10 @@ $('res').onclick=()=>{
   r.onload=()=>{
     try{
       const o=JSON.parse(r.result);
-      if(!Array.isArray(o.members))throw 0;
-      DB=o;
+      if(!o||!Array.isArray(o.members))throw 0;
+      if(o.records&&typeof o.records!=='object')throw 0;
+      o.members.forEach(m=>{if(!m||typeof m!=='object'||typeof m.nama!=='string'||typeof m.id!=='string')throw 0;});
+      DB={members:o.members,records:(o.records&&typeof o.records==='object')?o.records:{},settings:(o.settings&&typeof o.settings==='object')?o.settings:{}};
       if(!DB.settings)DB.settings={};
       save();renderMem();renderAbsen();alert('Restore OK');
     }catch(e){alert('File tidak valid');}
