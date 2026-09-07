@@ -151,6 +151,9 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
         <div><label>Dari</label><input type="date" id="d1"></div>
         <div><label>Sampai</label><input type="date" id="d2"></div>
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="act" id="expRekap">Export rekap (CSV)</button>
+      </div>
     </div>
     <div class="card" id="rekapOut"></div>
   </section>
@@ -342,6 +345,19 @@ function renderRekap(){
   h+='</table><p class="mut">'+ds.length+' pertemuan: '+ds.join(', ')+'</p>';
   $('rekapOut').innerHTML=h;
 }
+$('expRekap').onclick=()=>{
+  const ds=datesIn($('d1').value,$('d2').value);
+  if(!ds.length||!DB.members.length)return alert('Tidak ada data pada rentang ini');
+  let rows=[['nama','divisi','H','I','S','A','kehadiran_%','pertemuan']];
+  DB.members.forEach(m=>{
+    let c={H:0,I:0,S:0,A:0},n=0;
+    ds.forEach(d=>{const v=(DB.records[d]||{})[m.id];if(v){c[v]++;n++;}});
+    const p=n?Math.round(c.H/n*100):0;
+    rows.push([m.nama,m.divisi||'',c.H,c.I,c.S,c.A,p+'%',ds.length]);
+  });
+  const fn='rekap-osis-'+(ds[0]||'x')+'_'+(ds[ds.length-1]||'x')+'.csv';
+  dl(fn,rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv');
+};
 
 function parseCSV(t){
   const rows=[];let r=[],v='',q=false;
