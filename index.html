@@ -20,7 +20,6 @@ body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;b
 .org-mark{width:40px;height:40px;border-radius:10px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;letter-spacing:.5px;flex:none}
 .org-name{font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
 .topbar h1{margin:2px 0 0;font-size:20px;font-weight:700}
-.topbar .sub{font-size:12px;color:var(--muted);margin-top:1px}
 /* ---- tab ---- */
 .tabs{max-width:760px;margin:12px auto 0;padding:0 16px}
 .tabs-inner{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:4px;display:flex;gap:4px;box-shadow:var(--shadow);position:sticky;top:12px}
@@ -30,6 +29,8 @@ main{padding:14px 16px 40px;max-width:760px;margin:auto}
 section{display:none}
 section.on{display:block}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.db-notice{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.db-notice[hidden]{display:none}
 .card h2{margin:0 0 6px;font-size:15px}
 .sec-label{font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
 input,select,textarea{width:100%;padding:10px 12px;margin:4px 0 10px;border:1px solid #cbd3e1;border-radius:9px;font-family:inherit;font-size:14px;background:#fff;color:var(--ink)}
@@ -78,7 +79,6 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
       <div>
         <div class="org-name">OSIS SMK Alhikmah</div>
         <h1>Absen OSIS</h1>
-        <div class="sub">Data bersama di Supabase</div>
       </div>
     </div>
     <a href="../osis-hub/index.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1e3a8a;background:#eaf0fe;padding:8px 14px;border-radius:99px;border:1px solid #c7d7fd;">
@@ -92,7 +92,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
   <button data-t="rekap">Rekap</button>
 </div></div>
 <main>
-  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+  <div class="card db-notice" id="dbNotice">
     <div class="mut" id="dbStatus" role="status" aria-live="polite">Menghubungkan ke database...</div>
     <div class="row" style="flex:0 0 auto">
       <button class="act" id="dbRetry" hidden>Coba lagi</button>
@@ -196,9 +196,10 @@ let dataReady=false;
 let settingsTimer=null;
 let tmp={};
 
-function setDbStatus(message,isError=false){
+function setDbStatus(message,isError=false,show=isError){
   $('dbStatus').textContent=message;
   $('dbStatus').style.color=isError?'var(--red)':'';
+  $('dbNotice').hidden=!show;
 }
 function reportDbError(action,error){
   console.error(action,error);
@@ -245,14 +246,14 @@ async function initializeDatabase(){
   if(settingsTimer){clearTimeout(settingsTimer);settingsTimer=null;}
   setAppBusy(true);
   $('dbRetry').hidden=true;
-  setDbStatus('Menghubungkan ke database...');
+  setDbStatus('Menghubungkan ke database...',false,true);
   try{
     if(!sb)sb=makeSupabaseClient();
     await loadSharedData();
     dataReady=true;
     setAppBusy(false);
     $('dbRetry').hidden=true;
-    setDbStatus('Data bersama tersambung. Muat ulang halaman browser untuk melihat perubahan dari browser lain.');
+    setDbStatus('',false,false);
   }catch(error){
     console.error('Gagal memuat database Absen OSIS:',error);
     const configMissing=!(window.ABSEN_SUPABASE_CONFIG?.url&&window.ABSEN_SUPABASE_CONFIG?.publishableKey);
