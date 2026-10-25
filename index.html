@@ -148,6 +148,10 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
       </div>
       <div class="mut" id="impMsg"></div>
     </div>
+    <div class="card">
+      <label for="memberSearch">Cari nama anggota</label>
+      <input id="memberSearch" type="search" placeholder="Ketik nama anggota" autocomplete="off">
+    </div>
     <div id="memList"></div>
     <div class="card">
       <button class="act dan" id="clearMembers" style="width:100%">Hapus semua anggota</button>
@@ -349,7 +353,15 @@ $('addM').onclick=async()=>{
 function renderMem(){
   const el=$('memList');el.innerHTML='';
   $('clearMembers').disabled=!DB.members.length;
-  DB.members.forEach(m=>{
+  const query=$('memberSearch').value.trim().toLocaleLowerCase('id');
+  const members=DB.members.filter(m=>String(m.nama||'').toLocaleLowerCase('id').includes(query));
+  if(DB.members.length&&!members.length){
+    const empty=document.createElement('div');empty.className='card mut';
+    empty.textContent='Tidak ada anggota dengan nama tersebut.';
+    el.appendChild(empty);
+    return;
+  }
+  members.forEach(m=>{
     const d=document.createElement('div');d.className='card mem-item';
     const info=document.createElement('div');
     const b=document.createElement('b');b.textContent=m.nama;
@@ -389,6 +401,7 @@ function renderMem(){
     rw.append(be,bh);d.append(info,rw);el.appendChild(d);
   });
 }
+$('memberSearch').addEventListener('input',renderMem);
 $('clearMembers').onclick=async()=>{
   const count=DB.members.length;
   if(!count)return;
