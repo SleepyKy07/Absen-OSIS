@@ -177,6 +177,12 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
       </div>
     </div>
     <div class="card" id="rekapOut"></div>
+    <div class="card">
+      <p class="sec-label">Hapus data absensi</p>
+      <div class="mut">Menghapus catatan absensi semua anggota pada rentang tanggal di atas. Data anggota tidak ikut terhapus. Penghapusan tidak dapat dibatalkan.</div>
+      <button class="act dan" id="deleteAttendance" style="width:100%;margin-top:10px" disabled>Hapus absensi pada rentang ini</button>
+      <div class="mut" id="deleteAttendanceMsg" role="status" aria-live="polite" style="margin-top:8px"></div>
+    </div>
   </section>
 </main>
 <script src="./supabase-config.js"></script>
@@ -212,6 +218,7 @@ function setAppBusy(busy){
   if(!busy){
     $('clearMembers').disabled=!DB.members.length;
     $('sendGrp').disabled=!alpaMembers().length;
+    updateDeleteAttendanceButton();
   }
 }
 function makeSupabaseClient(){
@@ -535,8 +542,19 @@ function fallbackCopy(txt,done){
 }
 
 function datesIn(a,b){return Object.keys(DB.records).filter(d=>(!a||d>=a)&&(!b||d<=b)).sort();}
+function attendanceCountInRange(start,end){
+  return Object.entries(DB.records).reduce((total,[date,records])=>
+    date>=start&&date<=end?total+Object.keys(records||{}).length:total,0);
+}
+function updateDeleteAttendanceButton(){
+  const start=$('d1').value,end=$('d2').value;
+  const valid=!!start&&!!end&&start<=end;
+  $('deleteAttendance').disabled=!valid||attendanceCountInRange(start,end)===0;
+}
 function renderRekap(){
-  const ds=datesIn($('d1').value,$('d2').value);
+  const start=$('d1').value,end=$('d2').value;
+  const ds=datesIn(start,end);
+  updateDeleteAttendanceButton();
   if(!ds.length||!DB.members.length){$('rekapOut').innerHTML='<span class="mut">Belum ada data pada rentang ini.</span>';return;}
   let h='<table><tr><th>Nama</th><th>H</th><th>I</th><th>S</th><th>A</th><th>%</th></tr>';
   DB.members.forEach(m=>{
@@ -548,6 +566,41 @@ function renderRekap(){
   h+='</table><p class="mut">'+ds.length+' pertemuan: '+ds.join(', ')+'</p>';
   $('rekapOut').innerHTML=h;
 }
+$('d1').onchange=renderRekap;
+$('d2').onchange=renderRekap;
+$('deleteAttendance').onclick=async()=>{
+  const start=$('d1').value,end=$('d2').value;
+  if(!start||!end||start>end)return alert('Pilih rentang tanggal yang valid terlebih dahulu.');
+  const count=attendanceCountInRange(start,end);
+  if(!count)return alert('Tidak ada data absensi pada rentang tanggal tersebut.');
+  const range=''+fmtID(start)+' sampai '+fmtID(end);
+  if(!confirm('PERINGATAN: '+count+' catatan absensi pada '+range+' akan dihapus untuk semua anggota. Data anggota tetap ada, tetapi penghapusan absensi tidak dapat dibatalkan. Lanjutkan?'))return;
+  if(prompt('Untuk mengonfirmasi, ketik HAPUS:')!=='HAPUS'){
+    $('deleteAttendanceMsg').textContent='Penghapusan dibatalkan.';
+    return;
+  }
+  const button=$('deleteAttendance');
+  button.disabled=true;
+  $('deleteAttendanceMsg').textContent='Menghapus data absensi...';
+  try{
+    const {error}=await sb.from('attendance').delete().gte('attendance_date',start).lte('attendance_date',end);
+    if(error)throw error;
+    Object.keys(DB.records).forEach(date=>{
+      if(date>=start&&date<=end)delete DB.records[date];
+    });
+    const currentDate=$('tgl').value||today();
+    if(currentDate>=start&&currentDate<=end)tmp={};
+    renderRekap();
+    if(currentDate>=start&&currentDate<=end)renderAbsen(true);
+    $('deleteAttendanceMsg').textContent='Data absensi pada '+range+' berhasil dihapus.';
+    setDbStatus('Data absensi pada rentang tanggal terpilih berhasil dihapus dari database bersama.');
+  }catch(error){
+    $('deleteAttendanceMsg').textContent='Penghapusan gagal. Data tidak dihapus.';
+    reportDbError('Gagal menghapus data absensi',error);
+  }finally{
+    updateDeleteAttendanceButton();
+  }
+};
 $('expRekap').onclick=()=>{
   const ds=datesIn($('d1').value,$('d2').value);
   if(!ds.length||!DB.members.length)return alert('Tidak ada data pada rentang ini');
