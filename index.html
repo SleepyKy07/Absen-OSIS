@@ -95,7 +95,6 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
   <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <div class="mut" id="dbStatus" role="status" aria-live="polite">Menghubungkan ke database...</div>
     <div class="row" style="flex:0 0 auto">
-      <button class="act" id="dbReload">Muat ulang data</button>
       <button class="act" id="dbRetry" hidden>Coba lagi</button>
     </div>
   </div>
@@ -253,7 +252,7 @@ async function initializeDatabase(){
     dataReady=true;
     setAppBusy(false);
     $('dbRetry').hidden=true;
-    setDbStatus('Data bersama tersambung. Gunakan “Muat ulang data” untuk melihat perubahan dari browser lain.');
+    setDbStatus('Data bersama tersambung. Muat ulang halaman browser untuk melihat perubahan dari browser lain.');
   }catch(error){
     console.error('Gagal memuat database Absen OSIS:',error);
     const configMissing=!(window.ABSEN_SUPABASE_CONFIG?.url&&window.ABSEN_SUPABASE_CONFIG?.publishableKey);
@@ -277,10 +276,6 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   if(b.dataset.t==='rekap')renderRekap();
 });
 $('dbRetry').onclick=initializeDatabase;
-$('dbReload').onclick=()=>{
-  if(dataReady&&!confirm('Muat ulang data bersama? Pilihan absensi dan pengaturan yang belum disimpan akan dibuang.'))return;
-  initializeDatabase();
-};
 
 $('addM').onclick=async()=>{
   const n=$('nama').value.trim();
@@ -329,7 +324,7 @@ function renderMem(){
       try{
         const {data,error}=await sb.from('members').delete().eq('id',m.id).select('id').maybeSingle();
         if(error)throw error;
-        if(!data)throw new Error('Anggota sudah tidak ada di database. Muat ulang data.');
+        if(!data)throw new Error('Anggota sudah tidak ada di database. Refresh halaman.');
         DB.members=DB.members.filter(x=>x.id!==m.id);
         Object.values(DB.records).forEach(r=>delete r[m.id]);
         delete tmp[m.id];
@@ -615,7 +610,7 @@ $('res').onclick=()=>{
       alert('Restore OK');
     }catch(e){
       reportDbError('Restore JSON gagal',e);
-      alert(restoreApplied?'Restore sudah diterapkan, tetapi halaman gagal memuat ulang data. Klik “Muat ulang data”.':'Restore gagal. Data yang ada tidak diganti jika database menolak backup. Periksa pesan status.');
+      alert(restoreApplied?'Restore sudah diterapkan, tetapi halaman gagal memuat ulang data. Refresh halaman.':'Restore gagal. Data yang ada tidak diganti jika database menolak backup. Periksa pesan status.');
     }
   };
   r.readAsText(f);
