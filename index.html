@@ -192,8 +192,10 @@ const fmtID=d=>{try{return new Date(d+'T00:00:00').toLocaleDateString('id-ID',{w
 
 let DB={members:[],records:{},settings:{kegiatan:'',waktu:'15:30',tpl:DEF_TPL}};
 let sb=null;
+let realtimeChannel=null;
 let dataReady=false;
 let settingsTimer=null;
+let settingsDirty=new Set();
 let tmp={};
 
 function setDbStatus(message,isError=false,show=isError){
@@ -218,7 +220,19 @@ function makeSupabaseClient(){
   if(!window.supabase||typeof window.supabase.createClient!=='function')throw new Error('Supabase JavaScript SDK gagal dimuat. Periksa koneksi internet.');
   return window.supabase.createClient(config.url,config.publishableKey);
 }
-async function loadSharedData(){
+async function loadSharedData({preserveDraft=false}={}){
+  const activeDate=$('tgl').value||today();
+  const previousRecords=DB.records;
+  const localDraft={};
+  const localSettings={};
+  if(preserveDraft){
+    DB.members.forEach(m=>{
+      const localStatus=tmp[m.id]||'H';
+      const savedStatus=previousRecords[activeDate]?.[m.id]||'H';
+      if(localStatus!==savedStatus)localDraft[m.id]=localStatus;
+    });
+    settingsDirty.forEach(key=>localSettings[key]=DB.settings[key]);
+  }
   const [membersResult,attendanceResult,settingsResult]=await Promise.all([
     sb.from('members').select('id,nama,divisi,tel').order('nama'),
     sb.from('attendance').select('attendance_date,member_id,status'),
@@ -229,17 +243,48 @@ async function loadSharedData(){
   (attendanceResult.data||[]).forEach(row=>{
     (records[row.attendance_date]??={})[row.member_id]=row.status;
   });
+  const settings={kegiatan:'',waktu:'15:30',tpl:DEF_TPL,...(settingsResult.data||{}),...localSettings};
   DB={
     members:membersResult.data||[],
     records,
-    settings:{kegiatan:'',waktu:'15:30',tpl:DEF_TPL,...(settingsResult.data||{})}
+    settings
   };
   $('kegiatan').value=DB.settings.kegiatan;
   $('waktu').value=DB.settings.waktu;
   $('tpl').value=DB.settings.tpl;
-  tmp={};
+  tmp={...(records[activeDate]||{}),...localDraft};
   renderMem();renderAbsen();
   if($('rekap').classList.contains('on'))renderRekap();
+}
+function scheduleSharedRefresh(){
+  if(scheduleSharedRefresh.timer)clearTimeout(scheduleSharedRefresh.timer);
+  scheduleSharedRefresh.timer=setTimeout(async()=>{
+    if(!dataReady)return;
+    try{
+      await loadSharedData({preserveDraft:true});
+      setDbStatus('',false,false);
+    }catch(error){
+      reportDbError('Gagal menyinkronkan perubahan bersama',error);
+    }
+  },180);
+}
+function subscribeToSharedChanges(){
+  if(realtimeChannel)sb.removeChannel(realtimeChannel);
+  realtimeChannel=sb.channel('absen-osis-shared-data');
+  ['members','attendance','app_settings'].forEach(table=>{
+    realtimeChannel=realtimeChannel.on('postgres_changes',{
+      event:'*',schema:'public',table
+    },scheduleSharedRefresh);
+  });
+  realtimeChannel.subscribe(status=>{
+    if(status==='SUBSCRIBED'){
+      setDbStatus('',false,false);
+      scheduleSharedRefresh();
+    }
+    else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+      setDbStatus('Sinkronisasi langsung terputus. Data tetap tersimpan di database; coba muat ulang halaman jika perubahan dari browser lain belum muncul.',true);
+    }
+  });
 }
 async function initializeDatabase(){
   dataReady=false;
@@ -254,6 +299,7 @@ async function initializeDatabase(){
     setAppBusy(false);
     $('dbRetry').hidden=true;
     setDbStatus('',false,false);
+    subscribeToSharedChanges();
   }catch(error){
     console.error('Gagal memuat database Absen OSIS:',error);
     const configMissing=!(window.ABSEN_SUPABASE_CONFIG?.url&&window.ABSEN_SUPABASE_CONFIG?.publishableKey);
@@ -433,10 +479,15 @@ $('save').onclick=async()=>{
 async function persistSettings(){
   if(settingsTimer){clearTimeout(settingsTimer);settingsTimer=null;}
   if(!dataReady)return;
-  const {error}=await sb.from('app_settings').upsert({id:1,...DB.settings},{onConflict:'id'});
+  const snapshot={...DB.settings};
+  const {error}=await sb.from('app_settings').upsert({id:1,...snapshot},{onConflict:'id'});
   if(error)throw error;
+  Object.keys(snapshot).forEach(key=>{
+    if(DB.settings[key]===snapshot[key])settingsDirty.delete(key);
+  });
 }
-function updateSettingsFromForm(){
+function updateSettingsFromForm(changedKey){
+  if(changedKey)settingsDirty.add(changedKey);
   DB.settings.kegiatan=$('kegiatan').value.trim();
   DB.settings.waktu=$('waktu').value;
   DB.settings.tpl=$('tpl').value;
@@ -444,7 +495,7 @@ function updateSettingsFromForm(){
   if(settingsTimer)clearTimeout(settingsTimer);
   settingsTimer=setTimeout(()=>persistSettings().then(()=>setDbStatus('Pengaturan berhasil disimpan ke database bersama.')).catch(error=>reportDbError('Gagal menyimpan pengaturan',error)),600);
 }
-['kegiatan','waktu','tpl'].forEach(id=>$(id).addEventListener('input',updateSettingsFromForm));
+['kegiatan','waktu','tpl'].forEach(id=>$(id).addEventListener('input',()=>updateSettingsFromForm(id)));
 $('resetTpl').onclick=async()=>{
   $('tpl').value=DEF_TPL;
   DB.settings.tpl=DEF_TPL;renderWa();
@@ -606,6 +657,7 @@ $('res').onclick=()=>{
       const {error}=await sb.rpc('restore_osis_backup',{p_backup:o});
       if(error)throw error;
       restoreApplied=true;
+      settingsDirty.clear();
       await loadSharedData();
       setDbStatus('Restore JSON berhasil mengganti data database bersama.');
       alert('Restore OK');
