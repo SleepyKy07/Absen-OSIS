@@ -460,8 +460,17 @@ function renderWa(){
 }
 
 $('tgl').onchange=renderAbsen;
-$('allH').onclick=()=>{DB.members.forEach(m=>tmp[m.id]='H');renderAbsen(true);};
-$('allA').onclick=()=>{DB.members.forEach(m=>tmp[m.id]='A');renderAbsen(true);};
+function setAllAttendance(status,label){
+  const count=DB.members.length;
+  if(!count)return alert('Belum ada anggota untuk diubah.');
+  const date=$('tgl').value||today();
+  const message='Ubah status semua '+count+' anggota menjadi '+label+' untuk '+fmtID(date)+'? Perubahan belum tersimpan sampai Anda menekan Simpan.';
+  if(!confirm(message))return;
+  DB.members.forEach(m=>tmp[m.id]=status);
+  renderAbsen(true);
+}
+$('allH').onclick=()=>setAllAttendance('H','Hadir');
+$('allA').onclick=()=>setAllAttendance('A','Alpa');
 $('save').onclick=async()=>{
   const t=$('tgl').value||today();
   const rows=DB.members.map(m=>({attendance_date:t,member_id:m.id,status:tmp[m.id]||'H'}));
