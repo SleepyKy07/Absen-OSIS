@@ -72,13 +72,18 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
 </head>
 <body>
 <header class="topbar">
-  <div class="topbar-inner">
-    <div class="org-mark">OA</div>
-    <div>
-      <div class="org-name">OSIS SMK Alhikmah</div>
-      <h1>Absen OSIS</h1>
-      <div class="sub">Data hanya di browser ini (localStorage)</div>
+  <div class="topbar-inner" style="display:flex;justify-content:space-between;align-items:center">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="org-mark">OA</div>
+      <div>
+        <div class="org-name">OSIS SMK Alhikmah</div>
+        <h1>Absen OSIS</h1>
+        <div class="sub">Data bersama di Supabase</div>
+      </div>
     </div>
+    <a href="../osis-hub/index.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#1e3a8a;background:#eaf0fe;padding:8px 14px;border-radius:99px;border:1px solid #c7d7fd;">
+      🏠 Portal OSIS
+    </a>
   </div>
 </header>
 <div class="tabs"><div class="tabs-inner" style="width:100%">
@@ -87,6 +92,13 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
   <button data-t="rekap">Rekap</button>
 </div></div>
 <main>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div class="mut" id="dbStatus" role="status" aria-live="polite">Menghubungkan ke database...</div>
+    <div class="row" style="flex:0 0 auto">
+      <button class="act" id="dbReload">Muat ulang data</button>
+      <button class="act" id="dbRetry" hidden>Coba lagi</button>
+    </div>
+  </div>
   <section id="absen" class="on">
     <div class="card">
       <p class="sec-label">Kehadiran</p>
@@ -94,6 +106,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
       <input type="date" id="tgl">
       <div class="row">
         <button class="act" id="allH">Semua hadir</button>
+        <button class="act" id="allA">Semua Alpa</button>
         <button class="act pri" id="save">Simpan</button>
       </div>
       <div class="mut" id="saveMsg"></div>
@@ -129,7 +142,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
     </div>
     <div class="card">
       <p class="sec-label">Impor CSV</p>
-      <div class="mut">Format per baris: nama,divisi,telepon. Baris header (nama,...) boleh ada. Dari Excel: Save As CSV.</div>
+      <div class="mut">Format anggota: nama,divisi,telepon. CSV hasil Export CSV (tanggal,nama,divisi,telepon,status) juga didukung; tanggal dan status diabaikan.</div>
       <div class="row" style="margin-top:8px">
         <input type="file" id="impFile" accept=".csv,text/csv">
         <button class="act" id="impBtn">Impor</button>
@@ -137,6 +150,10 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
       <div class="mut" id="impMsg"></div>
     </div>
     <div id="memList"></div>
+    <div class="card">
+      <button class="act dan" id="clearMembers" style="width:100%">Hapus semua anggota</button>
+      <div class="mut" id="clearMembersMsg" style="margin-top:8px"></div>
+    </div>
     <div class="card">
       <p class="sec-label">Backup</p>
       <div class="row">
@@ -163,24 +180,94 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
     <div class="card" id="rekapOut"></div>
   </section>
 </main>
+<script src="./supabase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" crossorigin="anonymous"></script>
 <script>
-const K='osisAbsenV1';
-let DB=JSON.parse(localStorage.getItem(K)||'{"members":[],"records":{}}');
-if(!DB.settings)DB.settings={};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const save=()=>localStorage.setItem(K,JSON.stringify(DB));
 const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const telOf=m=>m.tel||'';
 const cleanTel=v=>String(v||'').trim();
 const DEF_TPL='Nama-nama di bawah ini tidak berangkat dan tanpa keterangan, {kegiatan} tanggal {tanggal} pukul {waktu}:\n{daftar}\nMohon konfirmasi. Terima kasih.';
 const fmtID=d=>{try{return new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}catch(e){return d;}};
 
+let DB={members:[],records:{},settings:{kegiatan:'',waktu:'15:30',tpl:DEF_TPL}};
+let sb=null;
+let dataReady=false;
+let settingsTimer=null;
+let tmp={};
+
+function setDbStatus(message,isError=false){
+  $('dbStatus').textContent=message;
+  $('dbStatus').style.color=isError?'var(--red)':'';
+}
+function reportDbError(action,error){
+  console.error(action,error);
+  setDbStatus(action+': '+(error?.message||'operasi database gagal.'),true);
+}
+function setAppBusy(busy){
+  document.querySelectorAll('#absen input,#absen textarea,#absen button,#anggota input,#anggota textarea,#anggota button,#rekap input,#rekap textarea,#rekap button').forEach(el=>el.disabled=busy);
+  if(!busy){
+    $('clearMembers').disabled=!DB.members.length;
+    $('sendGrp').disabled=!alpaMembers().length;
+  }
+}
+function makeSupabaseClient(){
+  const config=window.ABSEN_SUPABASE_CONFIG||{};
+  if(!config.url||!config.publishableKey)throw new Error('Isi Project URL dan publishable key di supabase-config.js.');
+  if(!window.supabase||typeof window.supabase.createClient!=='function')throw new Error('Supabase JavaScript SDK gagal dimuat. Periksa koneksi internet.');
+  return window.supabase.createClient(config.url,config.publishableKey);
+}
+async function loadSharedData(){
+  const [membersResult,attendanceResult,settingsResult]=await Promise.all([
+    sb.from('members').select('id,nama,divisi,tel').order('nama'),
+    sb.from('attendance').select('attendance_date,member_id,status'),
+    sb.from('app_settings').select('kegiatan,waktu,tpl').eq('id',1).maybeSingle()
+  ]);
+  for(const result of [membersResult,attendanceResult,settingsResult])if(result.error)throw result.error;
+  const records={};
+  (attendanceResult.data||[]).forEach(row=>{
+    (records[row.attendance_date]??={})[row.member_id]=row.status;
+  });
+  DB={
+    members:membersResult.data||[],
+    records,
+    settings:{kegiatan:'',waktu:'15:30',tpl:DEF_TPL,...(settingsResult.data||{})}
+  };
+  $('kegiatan').value=DB.settings.kegiatan;
+  $('waktu').value=DB.settings.waktu;
+  $('tpl').value=DB.settings.tpl;
+  tmp={};
+  renderMem();renderAbsen();
+  if($('rekap').classList.contains('on'))renderRekap();
+}
+async function initializeDatabase(){
+  dataReady=false;
+  if(settingsTimer){clearTimeout(settingsTimer);settingsTimer=null;}
+  setAppBusy(true);
+  $('dbRetry').hidden=true;
+  setDbStatus('Menghubungkan ke database...');
+  try{
+    if(!sb)sb=makeSupabaseClient();
+    await loadSharedData();
+    dataReady=true;
+    setAppBusy(false);
+    $('dbRetry').hidden=true;
+    setDbStatus('Data bersama tersambung. Gunakan “Muat ulang data” untuk melihat perubahan dari browser lain.');
+  }catch(error){
+    console.error('Gagal memuat database Absen OSIS:',error);
+    const configMissing=!(window.ABSEN_SUPABASE_CONFIG?.url&&window.ABSEN_SUPABASE_CONFIG?.publishableKey);
+    const sdkMissing=!window.supabase||typeof window.supabase.createClient!=='function';
+    setDbStatus((configMissing||sdkMissing?'Konfigurasi belum siap: ':'Gagal memuat database: ')+(error.message||'periksa konfigurasi dan kebijakan akses Supabase.')+(configMissing||sdkMissing?' Setelah memperbaiki file/akses, muat ulang halaman.':''),true);
+    $('dbRetry').hidden=configMissing||sdkMissing;
+    setAppBusy(true);
+  }
+}
+
 if(!$('tgl').value)$('tgl').value=today();
-$('waktu').value=DB.settings.waktu||'15:30';
-$('kegiatan').value=DB.settings.kegiatan||'';
-$('tpl').value=DB.settings.tpl||DEF_TPL;
+$('waktu').value='15:30';
+$('kegiatan').value='';
+$('tpl').value=DEF_TPL;
 
 document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
@@ -189,19 +276,30 @@ document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
   $(b.dataset.t).classList.add('on');
   if(b.dataset.t==='rekap')renderRekap();
 });
+$('dbRetry').onclick=initializeDatabase;
+$('dbReload').onclick=()=>{
+  if(dataReady&&!confirm('Muat ulang data bersama? Pilihan absensi dan pengaturan yang belum disimpan akan dibuang.'))return;
+  initializeDatabase();
+};
 
-$('addM').onclick=()=>{
+$('addM').onclick=async()=>{
   const n=$('nama').value.trim();
   if(!n)return alert('Isi nama dulu');
   const t=cleanTel($('tel').value);
   if(t&&!/^[0-9+()\-.\s]+$/.test(t))return alert('No. HP hanya boleh angka, +, -, spasi, tanda kurung');
-  DB.members.push({id:uid(),nama:n,divisi:$('divisi').value.trim(),tel:t});
-  $('nama').value=$('divisi').value=$('tel').value='';
-  save();renderMem();renderAbsen();
+  try{
+    const {data,error}=await sb.from('members').insert({nama:n,divisi:$('divisi').value.trim(),tel:t}).select('id,nama,divisi,tel').single();
+    if(error)throw error;
+    DB.members.push(data);
+    $('nama').value=$('divisi').value=$('tel').value='';
+    renderMem();renderAbsen();
+    setDbStatus('Anggota berhasil ditambahkan ke database bersama.');
+  }catch(error){reportDbError('Gagal menambah anggota',error);}
 };
 
 function renderMem(){
   const el=$('memList');el.innerHTML='';
+  $('clearMembers').disabled=!DB.members.length;
   DB.members.forEach(m=>{
     const d=document.createElement('div');d.className='card mem-item';
     const info=document.createElement('div');
@@ -212,28 +310,53 @@ function renderMem(){
     const rw=document.createElement('div');rw.className='row';
     const be=document.createElement('button');be.className='act';be.textContent='Edit';
     const bh=document.createElement('button');bh.className='act dan';bh.textContent='Hapus';
-    be.onclick=()=>{
+    be.onclick=async()=>{
       const n=prompt('Nama:',m.nama);if(n===null)return;
       const dv=prompt('Divisi:',m.divisi||'');if(dv===null)return;
       const t=prompt('No. HP:',telOf(m));if(t===null)return;
       if(t.trim()&&!/^[0-9+()\-.\s]+$/.test(t.trim())){alert('No. HP tidak valid');return;}
-      m.nama=n.trim()||m.nama;m.divisi=dv.trim();m.tel=cleanTel(t);
-      save();renderMem();renderAbsen();
+      const updated={nama:n.trim()||m.nama,divisi:dv.trim(),tel:cleanTel(t)};
+      try{
+        const {data,error}=await sb.from('members').update(updated).eq('id',m.id).select('id,nama,divisi,tel').single();
+        if(error)throw error;
+        Object.assign(m,data);
+        renderMem();renderAbsen();
+        setDbStatus('Data anggota berhasil diperbarui.');
+      }catch(error){reportDbError('Gagal mengubah anggota',error);}
     };
-    bh.onclick=()=>{
+    bh.onclick=async()=>{
       if(!confirm('Hapus '+m.nama+'?'))return;
-      DB.members=DB.members.filter(x=>x.id!==m.id);
-      Object.values(DB.records).forEach(r=>delete r[m.id]);
-      save();renderMem();renderAbsen();
+      try{
+        const {data,error}=await sb.from('members').delete().eq('id',m.id).select('id').maybeSingle();
+        if(error)throw error;
+        if(!data)throw new Error('Anggota sudah tidak ada di database. Muat ulang data.');
+        DB.members=DB.members.filter(x=>x.id!==m.id);
+        Object.values(DB.records).forEach(r=>delete r[m.id]);
+        delete tmp[m.id];
+        renderMem();renderAbsen(true);
+        setDbStatus('Anggota dan riwayat absensinya berhasil dihapus.');
+      }catch(error){reportDbError('Gagal menghapus anggota',error);}
     };
     rw.append(be,bh);d.append(info,rw);el.appendChild(d);
   });
 }
+$('clearMembers').onclick=async()=>{
+  const count=DB.members.length;
+  if(!count)return;
+  if(!confirm('Hapus semua '+count+' anggota dan seluruh riwayat absensinya? Tindakan ini tidak dapat dibatalkan kecuali ada backup JSON.'))return;
+  try{
+    const {error}=await sb.from('members').delete().not('id','is',null);
+    if(error)throw error;
+    DB.members=[];DB.records={};tmp={};
+    renderMem();renderAbsen();
+    $('clearMembersMsg').textContent='Semua anggota dan riwayat absensi telah dihapus.';
+    setDbStatus('Semua anggota dan riwayat absensi berhasil dihapus dari database bersama.');
+  }catch(error){reportDbError('Gagal menghapus semua anggota',error);}
+};
 
-let tmp={};
-function renderAbsen(){
+function renderAbsen(preserveTmp=false){
   const t=$('tgl').value||today();
-  tmp={...(DB.records[t]||{})};
+  if(!preserveTmp)tmp={...(DB.records[t]||{})};
   const el=$('absenList');
   el.innerHTML=DB.members.length?'':'<div class="card mut">Belum ada anggota. Tambah di tab Anggota.</div>';
   const STS=['H','I','S','A'];
@@ -295,23 +418,42 @@ function renderWa(){
 }
 
 $('tgl').onchange=renderAbsen;
-$('allH').onclick=()=>{DB.members.forEach(m=>tmp[m.id]='H');renderAbsen();};
-$('save').onclick=()=>{
+$('allH').onclick=()=>{DB.members.forEach(m=>tmp[m.id]='H');renderAbsen(true);};
+$('allA').onclick=()=>{DB.members.forEach(m=>tmp[m.id]='A');renderAbsen(true);};
+$('save').onclick=async()=>{
   const t=$('tgl').value||today();
-  DB.records[t]={...tmp};
-  save();
-  $('saveMsg').textContent='Tersimpan '+t+' ('+Object.keys(tmp).length+' orang)';
-  setTimeout(()=>$('saveMsg').textContent='',2000);
+  const rows=DB.members.map(m=>({attendance_date:t,member_id:m.id,status:tmp[m.id]||'H'}));
+  try{
+    if(rows.length){
+      const {error}=await sb.from('attendance').upsert(rows,{onConflict:'attendance_date,member_id'});
+      if(error)throw error;
+    }
+    DB.records[t]={...tmp};
+    $('saveMsg').textContent='Tersimpan '+t+' ('+rows.length+' orang)';
+    setDbStatus('Absensi berhasil disimpan ke database bersama.');
+    setTimeout(()=>$('saveMsg').textContent='',2500);
+  }catch(error){reportDbError('Gagal menyimpan absensi',error);}
 };
-['kegiatan','waktu','tpl'].forEach(id=>$(id).addEventListener('input',()=>{
+async function persistSettings(){
+  if(settingsTimer){clearTimeout(settingsTimer);settingsTimer=null;}
+  if(!dataReady)return;
+  const {error}=await sb.from('app_settings').upsert({id:1,...DB.settings},{onConflict:'id'});
+  if(error)throw error;
+}
+function updateSettingsFromForm(){
   DB.settings.kegiatan=$('kegiatan').value.trim();
   DB.settings.waktu=$('waktu').value;
   DB.settings.tpl=$('tpl').value;
-  save();renderWa();
-}));
-$('resetTpl').onclick=()=>{
+  renderWa();
+  if(settingsTimer)clearTimeout(settingsTimer);
+  settingsTimer=setTimeout(()=>persistSettings().then(()=>setDbStatus('Pengaturan berhasil disimpan ke database bersama.')).catch(error=>reportDbError('Gagal menyimpan pengaturan',error)),600);
+}
+['kegiatan','waktu','tpl'].forEach(id=>$(id).addEventListener('input',updateSettingsFromForm));
+$('resetTpl').onclick=async()=>{
   $('tpl').value=DEF_TPL;
-  DB.settings.tpl=DEF_TPL;save();renderWa();
+  DB.settings.tpl=DEF_TPL;renderWa();
+  try{await persistSettings();setDbStatus('Template berhasil disimpan ke database bersama.');}
+  catch(error){reportDbError('Gagal menyimpan template',error);}
 };
 $('sendGrp').onclick=()=>{
   const msg=buildMsg();
@@ -387,36 +529,64 @@ $('impBtn').onclick=()=>{
   const f=$('impFile').files[0];
   if(!f)return alert('Pilih file CSV dulu');
   const rd=new FileReader();
-  rd.onload=()=>{
+  rd.onload=async()=>{
     try{
       const rows=parseCSV(String(rd.result).replace(/^\uFEFF/,''));
+      if(!rows.length)throw new Error('CSV kosong');
+      const header=rows[0].map(c=>String(c??'').trim().toLowerCase());
+      const hasHeader=header.some(c=>['tanggal','nama','divisi','telepon','status'].includes(c));
+      const namaCol=hasHeader?header.indexOf('nama'):0;
+      const divisiCol=hasHeader?header.indexOf('divisi'):1;
+      const telCol=hasHeader?header.indexOf('telepon'):2;
+      if(namaCol<0)throw new Error('Kolom nama tidak ditemukan');
+      const start=hasHeader?1:0;
       const known=new Set(DB.members.map(m=>m.nama.toLowerCase()));
-      let add=0,skip=0;
-      rows.forEach((c,ix)=>{
-        let nama=String(c[0]||'').trim();
-        if(ix===0&&/^nama$/i.test(nama))return;
-        const divisi=String(c[1]||'').trim();
-        const tel=cleanTel(c[2]);
+      const imported=[];
+      let skip=0;
+      rows.slice(start).forEach(c=>{
+        let nama=String(c[namaCol]||'').trim();
+        const divisi=divisiCol>=0?String(c[divisiCol]||'').trim():'';
+        const tel=telCol>=0?cleanTel(c[telCol]):'';
         if(!nama){skip++;return;}
         if(tel&&!/^[0-9+()\-.\s]+$/.test(tel)){skip++;return;}
         if(known.has(nama.toLowerCase())){skip++;return;}
         known.add(nama.toLowerCase());
-        DB.members.push({id:uid(),nama,divisi,tel});add++;
+        imported.push({nama,divisi,tel});
       });
-      save();renderMem();renderAbsen();
+      let added=0;
+      if(imported.length){
+        const {data,error}=await sb.from('members').insert(imported).select('id,nama,divisi,tel');
+        if(error)throw error;
+        DB.members.push(...(data||[]));added=(data||[]).length;
+        renderMem();renderAbsen();
+      }
       $('impFile').value='';
-      $('impMsg').textContent='Impor selesai: '+add+' ditambah, '+skip+' dilewati';
-      setTimeout(()=>$('impMsg').textContent='',4000);
-    }catch(e){alert('CSV tidak valid');}
+      $('impMsg').textContent='Impor database selesai: '+added+' ditambah, '+skip+' dilewati';
+      setDbStatus('Impor anggota berhasil disimpan ke database bersama.');
+    }catch(e){
+      $('impMsg').textContent='Impor gagal: '+e.message;
+      reportDbError('Gagal mengimpor CSV',e);
+    }
   };
-  rd.readAsText(f);
+  rd.onerror=()=>{$('impMsg').textContent='File CSV tidak dapat dibaca.';};
+  rd.readAsText(f,'UTF-8');
 };
 
-$('bak').onclick=()=>{dl('absen-osis.json',JSON.stringify(DB));};
+$('bak').onclick=async()=>{
+  try{
+    await persistSettings();
+    dl('absen-osis.json',JSON.stringify(DB));
+    setDbStatus('Backup JSON dibuat dari data database bersama.');
+  }catch(error){reportDbError('Gagal membuat backup JSON',error);}
+};
 $('exp').onclick=()=>{
   const ds=Object.keys(DB.records).sort();
   let rows=[['tanggal','nama','divisi','telepon','status']];
-  ds.forEach(d=>DB.members.forEach(m=>rows.push([d,m.nama,m.divisi||'',telOf(m),(DB.records[d]||{})[m.id]||''])));
+  if(ds.length){
+    ds.forEach(d=>DB.members.forEach(m=>rows.push([d,m.nama,m.divisi||'',telOf(m),(DB.records[d]||{})[m.id]||''])));
+  }else{
+    DB.members.forEach(m=>rows.push(['',m.nama,m.divisi||'',telOf(m),'']));
+  }
   dl('absen-osis.csv',rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'),'text/csv');
 };
 function dl(n,t,m='application/json'){
@@ -427,22 +597,31 @@ function dl(n,t,m='application/json'){
 $('res').onclick=()=>{
   const f=$('resFile').files[0];
   if(!f)return alert('Pilih file JSON dulu');
+  if(!confirm('Restore JSON akan mengganti data anggota, seluruh absensi, dan pengaturan di database bersama untuk semua pengunjung. Lanjutkan?'))return;
+  if(settingsTimer){clearTimeout(settingsTimer);settingsTimer=null;}
   const r=new FileReader();
-  r.onload=()=>{
+  r.onload=async()=>{
+    let restoreApplied=false;
     try{
       const o=JSON.parse(r.result);
       if(!o||!Array.isArray(o.members))throw 0;
       if(o.records&&typeof o.records!=='object')throw 0;
       o.members.forEach(m=>{if(!m||typeof m!=='object'||typeof m.nama!=='string'||typeof m.id!=='string')throw 0;});
-      DB={members:o.members,records:(o.records&&typeof o.records==='object')?o.records:{},settings:(o.settings&&typeof o.settings==='object')?o.settings:{}};
-      if(!DB.settings)DB.settings={};
-      save();renderMem();renderAbsen();alert('Restore OK');
-    }catch(e){alert('File tidak valid');}
+      const {error}=await sb.rpc('restore_osis_backup',{p_backup:o});
+      if(error)throw error;
+      restoreApplied=true;
+      await loadSharedData();
+      setDbStatus('Restore JSON berhasil mengganti data database bersama.');
+      alert('Restore OK');
+    }catch(e){
+      reportDbError('Restore JSON gagal',e);
+      alert(restoreApplied?'Restore sudah diterapkan, tetapi halaman gagal memuat ulang data. Klik “Muat ulang data”.':'Restore gagal. Data yang ada tidak diganti jika database menolak backup. Periksa pesan status.');
+    }
   };
   r.readAsText(f);
 };
 
-renderMem();renderAbsen();
+initializeDatabase();
 </script>
 </body>
 </html>
