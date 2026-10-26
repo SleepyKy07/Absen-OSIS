@@ -65,7 +65,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
 .pA{background:#fee2e2;color:#b91c1c}
 .pre{white-space:pre-wrap;background:#f8fafc;border:1px dashed #cbd3e1;border-radius:9px;padding:12px;font-size:14px}
 .mem-item{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.mem-item .row{flex:none}
+.mem-item .row{flex:none;flex-wrap:wrap}
 .mem-item .row button{min-height:40px;padding:6px 12px;font-size:13px}
 @media(max-width:480px){.st{grid-template-columns:repeat(4,1fr)}.absen-top{flex-direction:column;gap:0}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -370,6 +370,7 @@ function renderMem(){
     info.append(b,sp);
     const rw=document.createElement('div');rw.className='row';
     const be=document.createElement('button');be.className='act';be.textContent='Edit';
+    const bp=document.createElement('button');bp.className='act';bp.textContent='Ubah HP';
     const bh=document.createElement('button');bh.className='act dan';bh.textContent='Hapus';
     be.onclick=async()=>{
       const n=prompt('Nama:',m.nama);if(n===null)return;
@@ -385,6 +386,17 @@ function renderMem(){
         setDbStatus('Data anggota berhasil diperbarui.');
       }catch(error){reportDbError('Gagal mengubah anggota',error);}
     };
+    bp.onclick=async()=>{
+      const t=prompt('No. HP:',telOf(m));if(t===null)return;
+      if(t.trim()&&!/^[0-9+()\-.\s]+$/.test(t.trim())){alert('No. HP tidak valid');return;}
+      try{
+        const {data,error}=await sb.from('members').update({tel:cleanTel(t)}).eq('id',m.id).select('id,nama,divisi,tel').single();
+        if(error)throw error;
+        Object.assign(m,data);
+        renderMem();renderAbsen();
+        setDbStatus('Nomor HP anggota berhasil diperbarui.');
+      }catch(error){reportDbError('Gagal mengubah nomor HP',error);}
+    };
     bh.onclick=async()=>{
       if(!confirm('Hapus '+m.nama+'?'))return;
       try{
@@ -398,7 +410,7 @@ function renderMem(){
         setDbStatus('Anggota dan riwayat absensinya berhasil dihapus.');
       }catch(error){reportDbError('Gagal menghapus anggota',error);}
     };
-    rw.append(be,bh);d.append(info,rw);el.appendChild(d);
+    rw.append(be,bp,bh);d.append(info,rw);el.appendChild(d);
   });
 }
 $('memberSearch').addEventListener('input',renderMem);
