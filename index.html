@@ -370,14 +370,12 @@ function renderMem(){
     info.append(b,sp);
     const rw=document.createElement('div');rw.className='row';
     const be=document.createElement('button');be.className='act';be.textContent='Edit';
-    const bp=document.createElement('button');bp.className='act';bp.textContent='Ubah HP';
     const bh=document.createElement('button');bh.className='act dan';bh.textContent='Hapus';
     be.onclick=async()=>{
       const n=prompt('Nama:',m.nama);if(n===null)return;
-      const dv=prompt('Divisi:',m.divisi||'');if(dv===null)return;
       const t=prompt('No. HP:',telOf(m));if(t===null)return;
       if(t.trim()&&!/^[0-9+()\-.\s]+$/.test(t.trim())){alert('No. HP tidak valid');return;}
-      const updated={nama:n.trim()||m.nama,divisi:dv.trim(),tel:cleanTel(t)};
+      const updated={nama:n.trim()||m.nama,tel:cleanTel(t)};
       try{
         const {data,error}=await sb.from('members').update(updated).eq('id',m.id).select('id,nama,divisi,tel').single();
         if(error)throw error;
@@ -385,17 +383,6 @@ function renderMem(){
         renderMem();renderAbsen();
         setDbStatus('Data anggota berhasil diperbarui.');
       }catch(error){reportDbError('Gagal mengubah anggota',error);}
-    };
-    bp.onclick=async()=>{
-      const t=prompt('No. HP:',telOf(m));if(t===null)return;
-      if(t.trim()&&!/^[0-9+()\-.\s]+$/.test(t.trim())){alert('No. HP tidak valid');return;}
-      try{
-        const {data,error}=await sb.from('members').update({tel:cleanTel(t)}).eq('id',m.id).select('id,nama,divisi,tel').single();
-        if(error)throw error;
-        Object.assign(m,data);
-        renderMem();renderAbsen();
-        setDbStatus('Nomor HP anggota berhasil diperbarui.');
-      }catch(error){reportDbError('Gagal mengubah nomor HP',error);}
     };
     bh.onclick=async()=>{
       if(!confirm('Hapus '+m.nama+'?'))return;
@@ -410,7 +397,7 @@ function renderMem(){
         setDbStatus('Anggota dan riwayat absensinya berhasil dihapus.');
       }catch(error){reportDbError('Gagal menghapus anggota',error);}
     };
-    rw.append(be,bp,bh);d.append(info,rw);el.appendChild(d);
+    rw.append(be,bh);d.append(info,rw);el.appendChild(d);
   });
 }
 $('memberSearch').addEventListener('input',renderMem);
