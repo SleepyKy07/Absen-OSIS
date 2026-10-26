@@ -37,6 +37,9 @@ input,select,textarea{width:100%;padding:10px 12px;margin:4px 0 10px;border:1px 
 input:focus,select:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:0;border-color:var(--navy)}
 textarea{resize:vertical}
 label{font-size:12px;color:var(--muted);font-weight:600}
+dialog{width:min(420px,calc(100% - 32px));border:1px solid var(--line);border-radius:var(--r);padding:18px;color:var(--ink);box-shadow:0 16px 48px rgba(16,24,40,.22)}
+dialog::backdrop{background:rgba(16,24,40,.45)}
+dialog h2{margin:0 0 14px;font-size:18px}
 .row{display:flex;gap:8px}
 .row>*{flex:1}
 button.act{min-height:44px;padding:10px 14px;border-radius:9px;border:1px solid #cbd3e1;background:#fff;color:var(--ink);font-weight:600;font-size:14px;cursor:pointer}
@@ -189,6 +192,19 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted
     </div>
   </section>
 </main>
+<dialog id="editMemberDialog" aria-labelledby="editMemberTitle">
+  <form id="editMemberForm" novalidate>
+    <h2 id="editMemberTitle">Edit anggota</h2>
+    <label for="editMemberName">Nama</label>
+    <input id="editMemberName" autocomplete="name">
+    <label for="editMemberPhone">No. HP</label>
+    <input id="editMemberPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Contoh: 0812...">
+    <div class="row">
+      <button class="act" id="cancelMemberEdit" type="button">Batal</button>
+      <button class="act pri" id="saveMemberEdit" type="submit">Simpan</button>
+    </div>
+  </form>
+</dialog>
 <script src="./supabase-config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" crossorigin="anonymous"></script>
 <script>
@@ -207,6 +223,7 @@ let dataReady=false;
 let settingsTimer=null;
 let settingsDirty=new Set();
 let tmp={};
+let editingMemberId=null;
 
 function setDbStatus(message,isError=false,show=isError){
   $('dbStatus').textContent=message;
@@ -371,18 +388,12 @@ function renderMem(){
     const rw=document.createElement('div');rw.className='row';
     const be=document.createElement('button');be.className='act';be.textContent='Edit';
     const bh=document.createElement('button');bh.className='act dan';bh.textContent='Hapus';
-    be.onclick=async()=>{
-      const n=prompt('Nama:',m.nama);if(n===null)return;
-      const t=prompt('No. HP:',telOf(m));if(t===null)return;
-      if(t.trim()&&!/^[0-9+()\-.\s]+$/.test(t.trim())){alert('No. HP tidak valid');return;}
-      const updated={nama:n.trim()||m.nama,tel:cleanTel(t)};
-      try{
-        const {data,error}=await sb.from('members').update(updated).eq('id',m.id).select('id,nama,divisi,tel').single();
-        if(error)throw error;
-        Object.assign(m,data);
-        renderMem();renderAbsen();
-        setDbStatus('Data anggota berhasil diperbarui.');
-      }catch(error){reportDbError('Gagal mengubah anggota',error);}
+    be.onclick=()=>{
+      editingMemberId=m.id;
+      $('editMemberName').value=m.nama;
+      $('editMemberPhone').value=telOf(m);
+      $('editMemberDialog').showModal();
+      $('editMemberName').focus();
     };
     bh.onclick=async()=>{
       if(!confirm('Hapus '+m.nama+'?'))return;
@@ -400,6 +411,28 @@ function renderMem(){
     rw.append(be,bh);d.append(info,rw);el.appendChild(d);
   });
 }
+$('cancelMemberEdit').onclick=()=>$('editMemberDialog').close();
+$('editMemberDialog').addEventListener('close',()=>{editingMemberId=null;});
+$('editMemberForm').onsubmit=async event=>{
+  event.preventDefault();
+  const member=DB.members.find(m=>m.id===editingMemberId);
+  if(!member){$('editMemberDialog').close();return;}
+  const nama=$('editMemberName').value.trim();
+  const tel=cleanTel($('editMemberPhone').value);
+  if(!nama)return alert('Nama anggota tidak boleh kosong.');
+  if(tel&&!/^[0-9+()\-.\s]+$/.test(tel))return alert('No. HP tidak valid.');
+  const saveButton=$('saveMemberEdit');
+  saveButton.disabled=true;
+  try{
+    const {data,error}=await sb.from('members').update({nama,tel}).eq('id',member.id).select('id,nama,divisi,tel').single();
+    if(error)throw error;
+    Object.assign(member,data);
+    $('editMemberDialog').close();
+    renderMem();renderAbsen();
+    setDbStatus('Data anggota berhasil diperbarui.');
+  }catch(error){reportDbError('Gagal mengubah anggota',error);}
+  finally{saveButton.disabled=false;}
+};
 $('memberSearch').addEventListener('input',renderMem);
 $('clearMembers').onclick=async()=>{
   const count=DB.members.length;
