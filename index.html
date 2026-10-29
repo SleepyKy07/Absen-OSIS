@@ -220,6 +220,7 @@ let DB={members:[],records:{},settings:{kegiatan:'',waktu:'15:30',tpl:DEF_TPL}};
 let sb=null;
 let realtimeChannel=null;
 let dataReady=false;
+let pendingSharedRefresh=false;
 let settingsTimer=null;
 let settingsDirty=new Set();
 let tmp={};
@@ -285,6 +286,10 @@ async function loadSharedData({preserveDraft=false}={}){
   if($('rekap').classList.contains('on'))renderRekap();
 }
 function scheduleSharedRefresh(){
+  if(!dataReady){
+    pendingSharedRefresh=true;
+    return;
+  }
   if(scheduleSharedRefresh.timer)clearTimeout(scheduleSharedRefresh.timer);
   scheduleSharedRefresh.timer=setTimeout(async()=>{
     if(!dataReady)return;
@@ -304,13 +309,30 @@ function subscribeToSharedChanges(){
       event:'*',schema:'public',table
     },scheduleSharedRefresh);
   });
-  realtimeChannel.subscribe(status=>{
-    if(status==='SUBSCRIBED'){
-      setDbStatus('',false,false);
-      scheduleSharedRefresh();
-    }
-    else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
-      setDbStatus('Sinkronisasi langsung terputus. Data tetap tersimpan di database; coba muat ulang halaman jika perubahan dari browser lain belum muncul.',true);
+  // Sambungkan realtime dulu, baru muat data. Dengan urutan ini tidak ada celah
+  // perubahan yang terlewat, jadi data cukup diambil sekali (tanpa refresh ganda).
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=()=>{if(done)return;done=true;resolve();};
+    const timer=setTimeout(finish,2000);
+    try{
+      realtimeChannel.subscribe(status=>{
+        if(status==='SUBSCRIBED'){
+          clearTimeout(timer);
+          setDbStatus('',false,false);
+          finish();
+        }
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
+          clearTimeout(timer);
+          setDbStatus('Sinkronisasi langsung terputus. Data tetap tersimpan di database; coba muat ulang halaman jika perubahan dari browser lain belum muncul.',true);
+          finish();
+        }
+      });
+    }catch(error){
+      clearTimeout(timer);
+      console.error('Gagal menyiapkan sinkronisasi langsung:',error);
+      setDbStatus('Sinkronisasi langsung tidak tersedia. Data tetap tersimpan di database.',true);
+      finish();
     }
   });
 }
@@ -322,12 +344,16 @@ async function initializeDatabase(){
   setDbStatus('Menghubungkan ke database...',false,true);
   try{
     if(!sb)sb=makeSupabaseClient();
+    await subscribeToSharedChanges();
     await loadSharedData();
     dataReady=true;
     setAppBusy(false);
     $('dbRetry').hidden=true;
     setDbStatus('',false,false);
-    subscribeToSharedChanges();
+    if(pendingSharedRefresh){
+      pendingSharedRefresh=false;
+      scheduleSharedRefresh();
+    }
   }catch(error){
     console.error('Gagal memuat database Absen OSIS:',error);
     const configMissing=!(window.ABSEN_SUPABASE_CONFIG?.url&&window.ABSEN_SUPABASE_CONFIG?.publishableKey);
